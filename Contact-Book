@@ -1,0 +1,185 @@
+from tkinter import *
+from tkinter import messagebox, ttk
+import sqlite3
+
+# ---------- Database Setup ----------
+def connect_db():
+    conn = sqlite3.connect("contacts.db")
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS contact (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            phone TEXT NOT NULL,
+            email TEXT,
+            address TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+connect_db()
+
+# ---------- Functions ----------
+def add_contact():
+    name = name_entry.get()
+    phone = phone_entry.get()
+    email = email_entry.get()
+    address = address_entry.get("1.0", END).strip()
+
+    if name == "" or phone == "":
+        messagebox.showerror("Error", "Name and Phone are required!")
+        return
+
+    conn = sqlite3.connect("contacts.db")
+    cur = conn.cursor()
+    cur.execute("INSERT INTO contact (name, phone, email, address) VALUES (?, ?, ?, ?)",
+                (name, phone, email, address))
+    conn.commit()
+    conn.close()
+    messagebox.showinfo("Success", "Contact added successfully!")
+    clear_entries()
+    view_contacts()
+
+def view_contacts():
+    for row in contact_list.get_children():
+        contact_list.delete(row)
+    conn = sqlite3.connect("contacts.db")
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM contact")
+    rows = cur.fetchall()
+    for row in rows:
+        contact_list.insert("", END, values=row)
+    conn.close()
+
+def search_contact():
+    query = search_entry.get()
+    for row in contact_list.get_children():
+        contact_list.delete(row)
+    conn = sqlite3.connect("contacts.db")
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM contact WHERE name LIKE ? OR phone LIKE ?", (f"%{query}%", f"%{query}%"))
+    rows = cur.fetchall()
+    for row in rows:
+        contact_list.insert("", END, values=row)
+    conn.close()
+
+def delete_contact():
+    selected = contact_list.focus()
+    if not selected:
+        messagebox.showerror("Error", "Select a contact to delete")
+        return
+    values = contact_list.item(selected, "values")
+    contact_id = values[0]
+    conn = sqlite3.connect("contacts.db")
+    cur = conn.cursor()
+    cur.execute("DELETE FROM contact WHERE id=?", (contact_id,))
+    conn.commit()
+    conn.close()
+    messagebox.showinfo("Success", "Contact deleted successfully!")
+    view_contacts()
+
+def update_contact():
+    selected = contact_list.focus()
+    if not selected:
+        messagebox.showerror("Error", "Select a contact to update")
+        return
+    values = contact_list.item(selected, "values")
+    contact_id = values[0]
+
+    name = name_entry.get()
+    phone = phone_entry.get()
+    email = email_entry.get()
+    address = address_entry.get("1.0", END).strip()
+
+    if name == "" or phone == "":
+        messagebox.showerror("Error", "Name and Phone are required!")
+        return
+
+    conn = sqlite3.connect("contacts.db")
+    cur = conn.cursor()
+    cur.execute("UPDATE contact SET name=?, phone=?, email=?, address=? WHERE id=?",
+                (name, phone, email, address, contact_id))
+    conn.commit()
+    conn.close()
+    messagebox.showinfo("Success", "Contact updated successfully!")
+    clear_entries()
+    view_contacts()
+
+def clear_entries():
+    name_entry.delete(0, END)
+    phone_entry.delete(0, END)
+    email_entry.delete(0, END)
+    address_entry.delete("1.0", END)
+
+def select_contact(event):
+    selected = contact_list.focus()
+    if not selected:
+        return
+    values = contact_list.item(selected, "values")
+    clear_entries()
+    name_entry.insert(0, values[1])
+    phone_entry.insert(0, values[2])
+    email_entry.insert(0, values[3])
+    address_entry.insert("1.0", values[4])
+
+# ---------- GUI Setup ----------
+root = Tk()
+root.title("Contact Book")
+root.geometry("800x500")
+root.config(bg="#f5f5f5")
+
+title = Label(root, text="📖 Contact Book", font=("Helvetica", 20, "bold"), bg="#f5f5f5", fg="#333")
+title.pack(pady=10)
+
+frame = Frame(root, bg="#f5f5f5")
+frame.pack(pady=10)
+
+# Input Fields
+Label(frame, text="Name:", bg="#f5f5f5", font=("Arial", 12)).grid(row=0, column=0, sticky=W, padx=10, pady=5)
+name_entry = Entry(frame, width=25, font=("Arial", 12))
+name_entry.grid(row=0, column=1)
+
+Label(frame, text="Phone:", bg="#f5f5f5", font=("Arial", 12)).grid(row=1, column=0, sticky=W, padx=10, pady=5)
+phone_entry = Entry(frame, width=25, font=("Arial", 12))
+phone_entry.grid(row=1, column=1)
+
+Label(frame, text="Email:", bg="#f5f5f5", font=("Arial", 12)).grid(row=2, column=0, sticky=W, padx=10, pady=5)
+email_entry = Entry(frame, width=25, font=("Arial", 12))
+email_entry.grid(row=2, column=1)
+
+Label(frame, text="Address:", bg="#f5f5f5", font=("Arial", 12)).grid(row=3, column=0, sticky=NW, padx=10, pady=5)
+address_entry = Text(frame, width=25, height=4, font=("Arial", 12))
+address_entry.grid(row=3, column=1)
+
+# Buttons
+btn_frame = Frame(frame, bg="#f5f5f5")
+btn_frame.grid(row=4, column=0, columnspan=2, pady=10)
+
+Button(btn_frame, text="Add", width=10, command=add_contact, bg="#4CAF50", fg="white").grid(row=0, column=0, padx=5)
+Button(btn_frame, text="Update", width=10, command=update_contact, bg="#2196F3", fg="white").grid(row=0, column=1, padx=5)
+Button(btn_frame, text="Delete", width=10, command=delete_contact, bg="#f44336", fg="white").grid(row=0, column=2, padx=5)
+Button(btn_frame, text="Clear", width=10, command=clear_entries, bg="#9E9E9E", fg="white").grid(row=0, column=3, padx=5)
+
+# Search Bar
+search_frame = Frame(root, bg="#f5f5f5")
+search_frame.pack(pady=10)
+Label(search_frame, text="Search:", bg="#f5f5f5", font=("Arial", 12)).grid(row=0, column=0, padx=5)
+search_entry = Entry(search_frame, width=30, font=("Arial", 12))
+search_entry.grid(row=0, column=1, padx=5)
+Button(search_frame, text="Search", command=search_contact, bg="#FF9800", fg="white").grid(row=0, column=2, padx=5)
+Button(search_frame, text="View All", command=view_contacts, bg="#607D8B", fg="white").grid(row=0, column=3, padx=5)
+
+# Contact List
+contact_list = ttk.Treeview(root, columns=("ID", "Name", "Phone", "Email", "Address"), show="headings", height=10)
+contact_list.pack(fill=BOTH, expand=True, pady=10)
+
+for col in ("ID", "Name", "Phone", "Email", "Address"):
+    contact_list.heading(col, text=col)
+    contact_list.column(col, width=150)
+
+contact_list.bind("<ButtonRelease-1>", select_contact)
+
+view_contacts()
+
+root.mainloop()
